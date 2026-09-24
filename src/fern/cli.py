@@ -24,6 +24,8 @@ def label(
     names: str = typer.Option("", help="comma-separated hf source names (default: all)"),
     n: int = typer.Option(20000, help="synthetic: number of generated requests"),
     limit: int | None = typer.Option(None, help="stop after this many new rows"),
+    langs: str = typer.Option("", help="synthetic: comma-separated languages cycled per request (ja,zh,de,es,fr,ko,pt); default English"),
+    split: str = typer.Option("all", help="hf: all | train | eval (stable 5% held-out slice by id)"),
     teacher_url: str = typer.Option("http://127.0.0.1:8080"),
     teacher_name: str = typer.Option("DeepSeek-V4-Flash-UD-IQ2_XXS"),
     concurrency: int = 8,
@@ -39,11 +41,11 @@ def label(
 
     async def main() -> int:
         if source == "hf":
-            ex = hf_tasks.iter_sources(names.split(",") if names else None, seed=seed)
+            ex = hf_tasks.iter_sources(names.split(",") if names else None, seed=seed, split=split)
         elif source == "eval":
             ex = hf_tasks.EVAL_SOURCE()
         elif source == "synthetic":
-            ex = synthetic.generate(teacher, n, out.with_name("syn_requests.jsonl"), seed=seed)
+            ex = synthetic.generate(teacher, n, out.with_name(out.stem + "_requests.jsonl"), seed=seed, langs=langs.split(",") if langs else None)
         else:
             raise typer.BadParameter(source)
         try:

@@ -8,8 +8,8 @@ wheels/
 
 # Virtual environments
 .venv
-data/
-runs/
+/data/
+/runs/
 
 # internal write-ups (not published)
 DESIGN.md

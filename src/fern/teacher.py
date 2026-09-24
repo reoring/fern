@@ -30,7 +30,7 @@ class PromptTooLong(ValueError):
 
 
 class Teacher:
-    def __init__(self, base_url: str, *, n_probs: int = 32, concurrency: int = 8, think: int = 0, timeout: float = 600):
+    def __init__(self, base_url: str, *, n_probs: int = 64, concurrency: int = 8, think: int = 0, timeout: float = 600):
         self.base_url = base_url.rstrip("/")
         self.n_probs = n_probs
         self.concurrency = concurrency

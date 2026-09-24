@@ -21,18 +21,26 @@ from .train import load_rows, rendered_of
 
 @torch.inference_mode()
 def agreement(student: Student, labels: list[Path], batch_size: int = 32, limit: int | None = None) -> dict:
-    rows = load_rows(labels)[:limit]
-    agree, kl, brier, n = 0, 0.0, 0.0, 0
-    for i in range(0, len(rows), batch_size):
-        chunk = [rendered_of(r) for r in rows[i : i + batch_size]]
-        logits, _, _ = student.forward_options([c[0] for c in chunk])
-        for l, t in zip(logits, [c[1] for c in chunk]):
-            p = torch.softmax(l, 0).cpu()
-            agree += int(p.argmax() == t.argmax())
-            kl += float((t * (t.clamp_min(1e-9).log() - p.clamp_min(1e-9).log())).sum())
-            brier += float(((p - t) ** 2).sum())
-            n += 1
-    return {"labels": [str(p) for p in labels], "rows": n, "agree": agree / n, "kl": kl / n, "brier": brier / n}
+    """Per label file (each is one gate in issue 009) plus the pooled numbers."""
+    per: dict[str, dict] = {}
+    tot = {"rows": 0, "agree": 0, "kl": 0.0, "brier": 0.0}
+    for path in labels:
+        rows = load_rows([path])[:limit]
+        agree, kl, brier = 0, 0.0, 0.0
+        for i in range(0, len(rows), batch_size):
+            chunk = [rendered_of(r) for r in rows[i : i + batch_size]]
+            logits, _, _ = student.forward_options([c[0] for c in chunk])
+            for l, t in zip(logits, [c[1] for c in chunk]):
+                p = torch.softmax(l, 0).cpu()
+                agree += int(p.argmax() == t.argmax())
+                kl += float((t * (t.clamp_min(1e-9).log() - p.clamp_min(1e-9).log())).sum())
+                brier += float(((p - t) ** 2).sum())
+        n = len(rows)
+        per[str(path)] = {"rows": n, "agree": agree / n, "kl": kl / n, "brier": brier / n}
+        for k, v in (("rows", n), ("agree", agree), ("kl", kl), ("brier", brier)):
+            tot[k] += v
+    n = tot["rows"]
+    return {"rows": n, "agree": tot["agree"] / n, "kl": tot["kl"] / n, "brier": tot["brier"] / n, "per_file": per}
 
 
 @torch.inference_mode()

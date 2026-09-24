@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from .schema import ChoiceQuestion, NoulQuestion, ScoreQuestion, option_keys
 
-LETTERS = "ABCDEFGHIJ"
+LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 SYSTEM = (
     "You are a decision engine. You never explain. Read the state, then answer the "

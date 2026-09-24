@@ -8,9 +8,11 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, BeforeValidator, Field, model_validator
 
 MAX_QUESTIONS = 50
-# Teacher labels and the student were trained with answer codes A..J / 0..9 only. More options
-# (Jev allows 255) need re-labeling and re-training with a larger code alphabet, see prompting.LETTERS.
-MAX_OPTIONS = 10
+# Answer codes must be single tokens in both tokenizers: letters A..Z for choice (prompting.LETTERS),
+# digits 0..9 for score (Qwen splits "10" into two tokens). Jev allows 255; exceeding these needs
+# re-labeling and re-training with a new code alphabet.
+MAX_CHOICE_OPTIONS = 26
+MAX_SCORE_LEVELS = 10
 
 
 def _as_text(v: Any) -> str:
@@ -32,8 +34,8 @@ class ChoiceQuestion(BaseModel):
 
     @model_validator(mode="after")
     def _check(self) -> "ChoiceQuestion":
-        if not 2 <= len(self.criteria) <= MAX_OPTIONS:
-            raise ValueError(f"choice needs 2..{MAX_OPTIONS} criteria")
+        if not 2 <= len(self.criteria) <= MAX_CHOICE_OPTIONS:
+            raise ValueError(f"choice needs 2..{MAX_CHOICE_OPTIONS} criteria")
         return self
 
 
@@ -44,8 +46,8 @@ class ScoreQuestion(BaseModel):
 
     @model_validator(mode="after")
     def _check(self) -> "ScoreQuestion":
-        if not 2 <= len(self.criteria) <= MAX_OPTIONS:
-            raise ValueError(f"score needs 2..{MAX_OPTIONS} levels")
+        if not 2 <= len(self.criteria) <= MAX_SCORE_LEVELS:
+            raise ValueError(f"score needs 2..{MAX_SCORE_LEVELS} levels")
         return self
 
 
