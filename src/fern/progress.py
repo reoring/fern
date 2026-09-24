@@ -10,6 +10,22 @@ from pathlib import Path
 
 from .data.hf_tasks import KNOWLEDGE_SOURCES, SOURCES, mmlu_pro
 
+V3_SOURCES = ["mmlu_aux", "wide", "xnli"]  # counted per file below, not in the v1 hf bar
+V1_SOURCES = [s for s in SOURCES if s not in KNOWLEDGE_SOURCES and s not in V3_SOURCES]
+# v3 label files (scripts/v3.sh) -> expected rows. synthetic files count requests × SYN_ROWS_PER_REQ.
+V3_FILES = {
+    "ab_think.jsonl": 4000,
+    "syn_multi.jsonl": 25000,
+    "eval_multi.jsonl": 1500,
+    "xnli.jsonl": 14260,
+    "eval_xnli.jsonl": 740,
+    "wide.jsonl": 19000,
+    "eval_wide.jsonl": 1000,
+    "hf_aux_think.jsonl": 28500,
+    "hf_choice_think.jsonl": 71000,
+    "hf_rest.jsonl": 62700,
+}
+
 BAR = 24
 SYN_ROWS_PER_REQ = 2.5  # observed: 8 requests → 22 rows
 
@@ -18,7 +34,7 @@ def _totals(data: Path) -> dict[str, int]:
     cache = data / ".totals.json"
     if cache.exists():
         return json.loads(cache.read_text())
-    totals = {name: (min(cap, n) if cap else n) for name, (build, cap) in SOURCES.items() for n in [sum(1 for _ in build())]}
+    totals = {name: (min(cap, n) if cap else n) for name, (build, cap) in SOURCES.items() if name not in V3_SOURCES for n in [sum(1 for _ in build())]}
     totals["eval"] = sum(1 for _ in mmlu_pro("test"))
     cache.write_text(json.dumps(totals))
     return totals
@@ -54,7 +70,7 @@ def render(data: Path, syn_requests: int = 5000, prev: tuple[float, int] | None 
     totals = _totals(data)
     hf = _counts(data / "hf.jsonl")
     hf_done = sum(hf.values())
-    hf_total = sum(totals[s] for s in SOURCES if s not in KNOWLEDGE_SOURCES)
+    hf_total = sum(totals[s] for s in V1_SOURCES)
     syn_path, eval_path = data / "syn.jsonl", data / "eval_mmlu_pro.jsonl"
     syn_rows = sum(_counts(syn_path).values())
     syn_req = len({json.loads(l)["id"].rsplit("/", 2)[1] for l in syn_path.open() if l.strip()}) if syn_path.exists() else 0
@@ -66,7 +82,7 @@ def render(data: Path, syn_requests: int = 5000, prev: tuple[float, int] | None 
     eval_running = not hf_running and not syn_running and eval_done < totals["eval"] * 0.99
 
     lines = [f"hf   {_bar(hf_done, hf_total)}  {_state(hf_done, hf_total, hf_running):8s} {hf_done:6d} / {hf_total} rows"]
-    for name in (s for s in SOURCES if s not in KNOWLEDGE_SOURCES):
+    for name in V1_SOURCES:
         prefix = next(p for p, s in PREFIX.items() if s == name)
         lines.append(f"      {name:16s} {hf.get(prefix, 0):5d} / {totals[name]}")
     lines.append(
@@ -89,9 +105,17 @@ def render(data: Path, syn_requests: int = 5000, prev: tuple[float, int] | None 
         know_running = 0 < know_done < know_total * 0.99
         think_running = not know_running and think_done < think_total * 0.99
         lines.append(f"tevl {_bar(think_done, think_total)}  {_state(think_done, think_total, think_running):8s} {think_done:6d} / {think_total} rows  (eval, thinking teacher)")
+    v3_done = v3_total = 0
+    for fname, expect in V3_FILES.items():
+        p = data / fname
+        if not p.exists():
+            continue
+        n = sum(_counts(p).values())
+        v3_done, v3_total = v3_done + n, v3_total + expect
+        lines.append(f"v3   {_bar(n, expect)}  {_state(n, expect, n < expect * 0.99):8s} {n:6d} / {expect} rows  {fname}")
     lines.extend(_train_lines(data.parent / "runs"))
-    total_done = hf_done + syn_rows + eval_done + know_done + think_done
-    stages = [(hf_done, hf_total), (syn_req, syn_requests), (eval_done, totals["eval"]), (know_done, know_total), (think_done, think_total)]
+    total_done = hf_done + syn_rows + eval_done + know_done + think_done + v3_done
+    stages = [(hf_done, hf_total), (syn_req, syn_requests), (eval_done, totals["eval"]), (know_done, know_total), (think_done, think_total), (v3_done, v3_total)]
     remaining = sum(max(0, t - d) for d, t in stages if d < t * 0.99)  # stages within 1% count as finished
     now = time.time()
     if prev is not None and remaining > 0:
