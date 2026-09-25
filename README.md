@@ -54,27 +54,37 @@ API work unchanged within these limits:
 - `usage.truncated: true` means the prompt exceeded `--max-len` (1,024 tokens) and the **start of `state`** was dropped (left truncation keeps the question). Treat such answers as unreliable; split or shorten `state`.
 - Same input → same output (no sampling).
 - `state` / `instructions` / `criteria` accept strings or JSON values. Non-strings are rendered as indented JSON text for the model, and `legend` echoes that text. `state` must be non-empty.
-- **Max 10 options per choice/score** (Jev: 255). Teacher labels and the student use answer codes A–J / 0–9 only; more options would need re-labeling and re-training.
+- **Max 26 options per `choice`, 10 levels per `score`** (Jev: 255). Answer codes must be single tokens (A–Z, 0–9); more would need a new code alphabet and re-training.
 - 1–50 questions per request. Each question is its own prompt in one batched forward, so latency grows ~linearly: 1q ≈ 28 ms, 10q ≈ 48 ms, 50q ≈ 700 ms on an RTX PRO 6000.
 - Lenient validation, unlike litjev (`extra="forbid"`): unknown top-level fields are ignored, `model` is optional and ignored, the response `model` is the loaded checkpoint path.
-- Training data is English only; other languages work but with lower confidence.
+- Training data is mostly English, with NLI in 10 languages (XNLI) and ~25k synthetic requests in ja/zh/de/es/fr/ko. Teacher agreement on held-out non-English requests is ~0.77 vs ~0.89 on English (see Results).
 - Auth: none by default (local use). With `FERN_API_KEYS` set (comma-separated), `/v1/systemone` requires `Authorization: Bearer <key>` (401 otherwise).
 
 ## Results
 
-| | fern (v2) |
-|---|---|
-| Agreement with teacher, held-out training distribution | 0.95 (KL 0.07) |
-| Agreement with thinking teacher, MMLU-Pro (2k) | 0.50 |
-| MMLU-Pro accuracy (2k, 10-way) | 0.43 |
-| Latency, 1 question / 10 questions (p50) | 28 ms / 48 ms |
+Agreement = argmax matches the teacher's argmax on held-out label files.
+
+| | v2 | v3 |
+|---|---|---|
+| Held-out training distribution | 0.95 | 0.94 |
+| Thinking teacher, MMLU-Pro (2k, 10-way) | 0.50 | 0.49 |
+| MMLU-Pro accuracy (2k) | 0.43 | 0.42 |
+| 11–26-way choice (920) | 0.83 | 0.84 |
+| XNLI, 10 languages (740) | 0.82 | 0.84 |
+| Synthetic requests, 6 non-English languages (1.5k) | 0.76 | 0.77 |
+| Latency, 1 / 10 questions (p50, RTX PRO 6000) | 28 / 48 ms | 28 / 48 ms |
+
+v3 adds 26-way choice, XNLI, MMLU auxiliary_train and multilingual synthetic data to the
+mix and is trained from the base model. Most of the 26-way and multilingual capability is
+already present in v2 (the base model generalises over the code alphabet); v3 is 1–2 pt
+better there and 1 pt worse on MMLU-Pro.
 
 It is a small model tuned for short states with clear criteria (routing, triage, labeling,
 safety flags). Multi-step reasoning and long-document judgments are outside its range.
 
 ## Reproduce
 
-One 96 GB GPU. Labeling ~7 h, training ~4 h per epoch.
+One 96 GB GPU. v3: labeling ~15 h (multilingual generation and thinking labels dominate), training ~18 h.
 
 ```bash
 scripts/teacher_up.sh UD-IQ2_XXS 8080     # downloads ~91 GB, serves the teacher on :8080
@@ -83,14 +93,17 @@ uv run fern progress --watch 10           # rows per stage, rate, ETA
 # stop the teacher, then:
 uv run fern train runs/v1 --data data/hf.jsonl --data data/syn.jsonl
 uv run fern eval  runs/v1 --labels data/eval_mmlu_pro.jsonl --out runs/v1/eval.json
-scripts/v2.sh                             # second epoch with thinking-teacher labels on knowledge sources
+scripts/v2.sh                             # + thinking-teacher labels on knowledge sources, one more epoch
+scripts/v3.sh                             # + 26-way choice, XNLI, MMLU aux, multilingual synthetic; train from base
 ```
 
-The teacher never generates text: for each example the server reads the next-token
-distribution at the answer position over the option codes (`n_probs`), and the student is
-trained with `KL(p_teacher ‖ p_student)` restricted to those codes. Sources: HellaSwag,
-MNLI, Yelp reviews, CommonsenseQA, BoolQ, ARC, TweetEval, MMLU, OpenBookQA, SciQ, GSM8K
-(multiple-choice form), plus ~15k synthetic Jev-style requests written by the teacher.
+The teacher never generates text for labels: for each example the server reads the
+next-token distribution at the answer position over the option codes (`n_probs`), and the
+student is trained with `KL(p_teacher ‖ p_student)` restricted to those codes. The only
+decoding is for synthetic requests, which the teacher writes as JSON. Sources: HellaSwag,
+MNLI, XNLI, Yelp reviews, CommonsenseQA, BoolQ, ARC, TweetEval, MMLU (+ auxiliary_train),
+OpenBookQA, SciQ, GSM8K (multiple-choice form), 11–26-way variants of ARC/CSQA/MMLU/OBQA
+padded with same-source distractors, plus ~40k synthetic Jev-style requests in 7 languages.
 
 ## License
 
