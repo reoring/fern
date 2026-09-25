@@ -135,7 +135,7 @@ def render(data: Path, syn_requests: int = 5000, prev: tuple[float, int] | None 
 
 TRAIN_RE = re.compile(r"^\[train\] step (?P<step>\d+)/(?P<total>\d+)\s+loss=(?P<loss>[\d.]+)\s+agree=(?P<agree>[\d.]+).*?(?P<tps>\d+) tok/s")
 EVAL_RE = re.compile(r"^\[eval\] step (?P<step>\d+)\s+kl=(?P<kl>[\d.]+)\s+agree=(?P<agree>[\d.]+)")
-STAGE_RE = re.compile(r"^(?P<ts>\S+) === (?P<stage>train|eval) (?P<run>\S+) ===")
+STAGE_RE = re.compile(r"^(?P<ts>\S+) === (?P<stage>train|eval) (?P<run>\S+)(?: \(.*\))? ===")
 
 
 def _train_lines(runs: Path) -> list[str]:
@@ -159,7 +159,7 @@ def _train_lines(runs: Path) -> list[str]:
                 last_train = m
             elif m := EVAL_RE.match(line):
                 evals.append(m)
-            elif "pipeline complete" in line:
+            elif re.search(r"=== \S+ complete ===", line):
                 final = "complete"
             elif "train failed" in line or "eval failed" in line:
                 final = line.split(" ", 1)[1].strip()
