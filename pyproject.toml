@@ -21,6 +21,10 @@ dependencies = [
     "flash-linear-attention>=0.5.2",
 ]
 
+[project.urls]
+Repository = "https://github.com/reoring/fern"
+Model = "https://huggingface.co/reoring/fern"
+
 [project.scripts]
 fern = "fern.cli:app"
 

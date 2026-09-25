@@ -1,17 +1,28 @@
 # fern
 
+[![Model on Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-reoring%2Ffern-yellow)](https://huggingface.co/reoring/fern)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+
 A 4B decision model with a Jev-compatible API. Send a `state` and up to 50 questions
 (`choice` / `score` / `noul`); get back probability distributions in one forward pass —
 no text generation, ~30 ms per request on one GPU.
 
-Distilled from DeepSeek V4 Flash (teacher, 2-bit GGUF on a single 96 GB GPU) into
-Qwen3.5-4B by matching the teacher's next-token distribution over the answer options.
+Distilled from [DeepSeek-V4-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash)
+(teacher, 2-bit GGUF on a single 96 GB GPU) into [Qwen3.5-4B](https://huggingface.co/Qwen/Qwen3.5-4B)
+by matching the teacher's next-token distribution over the answer options.
+Weights: [huggingface.co/reoring/fern](https://huggingface.co/reoring/fern).
+
+## Demo
 
 ![fern demo — 300 tickets × 4 decisions in 9 s](assets/demo.gif)
 
-`uv run python scripts/demo.py -n 300` against a running server: multilingual support
-tickets routed to a team with severity, urgency and sentiment, ~30 tickets/s on one GPU.
-([asciinema](https://asciinema.org/a/m2qY1wX8DlhFroxx))
+300 multilingual support tickets, each routed to a team with severity, urgency and
+sentiment — 1,200 decisions in 9 s on one GPU
+([asciinema](https://asciinema.org/a/m2qY1wX8DlhFroxx)).
+
+```bash
+uv run python scripts/demo.py -n 300            # needs a running `fern serve`; --key / FERN_API_KEY if auth is on
+```
 
 ## Quick start
 
