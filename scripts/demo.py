@@ -13,6 +13,7 @@ import os
 import random
 import sys
 import time
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 
 import httpx
@@ -85,6 +86,20 @@ def color(code: str, s: str) -> str:
     return f"\x1b[{code}m{s}\x1b[0m"
 
 
+def fit(s: str, width: int) -> str:
+    """Truncate/pad to `width` terminal cells (CJK counts as 2)."""
+    cells = [2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in s]
+    if sum(cells) <= width:
+        return s + " " * (width - sum(cells))
+    out, used = [], 0
+    for c, w in zip(s, cells):
+        if used + w > width - 1:
+            break
+        out.append(c)
+        used += w
+    return "".join(out) + "…" + " " * (width - used - 1)
+
+
 def one_line(i: int, state: str, ans: dict, ms: float) -> str:
     team = ans["team"]["choice"]
     conf = ans["team"]["confidence"]
@@ -92,10 +107,10 @@ def one_line(i: int, state: str, ans: dict, ms: float) -> str:
     bar = "".join(SEV[min(3, int(sev))] if k <= sev else "·" for k in range(4))
     urgent = color("1;31", "URGENT") if ans["urgent"]["noul"] > 0.5 else "      "
     angry = color("33", "😠") if ans["angry"]["noul"] > 0.5 else "  "
-    text = state if len(state) <= 44 else state[:43] + "…"
+    text = fit(state, 44)
     return (
         f"{color('90', f'{i:04d}')} {color(TEAM_COLOR[team], f'{team:<9}')} {conf:4.2f} "
-        f"{color('36', bar)} {sev:3.1f} {urgent} {angry} {text:<44} {color('90', f'{ms:5.1f}ms')}"
+        f"{color('36', bar)} {sev:3.1f} {urgent} {angry} {text} {color('90', f'{ms:5.1f}ms')}"
     )
 
 

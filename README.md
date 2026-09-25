@@ -7,10 +7,11 @@ no text generation, ~30 ms per request on one GPU.
 Distilled from DeepSeek V4 Flash (teacher, 2-bit GGUF on a single 96 GB GPU) into
 Qwen3.5-4B by matching the teacher's next-token distribution over the answer options.
 
-[![fern demo — 300 tickets × 4 decisions in 9 s](https://asciinema.org/a/MFsXp36Uo1EXvuOb.svg)](https://asciinema.org/a/MFsXp36Uo1EXvuOb)
+![fern demo — 300 tickets × 4 decisions in 9 s](assets/demo.gif)
 
 `uv run python scripts/demo.py -n 300` against a running server: multilingual support
 tickets routed to a team with severity, urgency and sentiment, ~30 tickets/s on one GPU.
+([asciinema](https://asciinema.org/a/m2qY1wX8DlhFroxx))
 
 ## Quick start
 
