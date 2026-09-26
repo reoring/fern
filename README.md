@@ -74,34 +74,36 @@ API work unchanged within these limits:
 - **Max 26 options per `choice`, 10 levels per `score`** (Jev: 255). Answer codes must be single tokens (A–Z, 0–9); more would need a new code alphabet and re-training.
 - 1–50 questions per request. Each question is its own prompt in one batched forward, so latency grows ~linearly: 1q ≈ 28 ms, 10q ≈ 48 ms, 50q ≈ 700 ms on an RTX PRO 6000.
 - Lenient validation, unlike litjev (`extra="forbid"`): unknown top-level fields are ignored, `model` is optional and ignored, the response `model` is the loaded checkpoint path.
-- Training data is mostly English, with NLI in 10 languages (XNLI) and ~25k synthetic requests in ja/zh/de/es/fr/ko. Teacher agreement on held-out non-English requests is ~0.77 vs ~0.89 on English (see Results).
+- Training data is mostly English, with NLI in 10 languages (XNLI) and ~25k synthetic requests in ja/zh/de/es/fr/ko. Teacher agreement on held-out non-English requests is ~0.78 vs ~0.90 on English (see Results).
 - Auth: none by default (local use). With `FERN_API_KEYS` set (comma-separated), `/v1/systemone` requires `Authorization: Bearer <key>` (401 otherwise).
 
 ## Results
 
 Agreement = argmax matches the teacher's argmax on held-out label files.
 
-| | v2 | v3 |
-|---|---|---|
-| Held-out training distribution | 0.95 | 0.94 |
-| Thinking teacher, MMLU-Pro (2k, 10-way) | 0.50 | 0.49 |
-| MMLU-Pro accuracy (2k) | 0.43 | 0.42 |
-| 11–26-way choice (920) | 0.83 | 0.84 |
-| XNLI, 10 languages (740) | 0.82 | 0.84 |
-| Synthetic requests, 6 non-English languages (1.5k) | 0.76 | 0.77 |
-| Latency, 1 / 10 questions (p50, RTX PRO 6000) | 28 / 48 ms | 28 / 48 ms |
+| | v2 | v3 | v3b (released) |
+|---|---|---|---|
+| Held-out training distribution | 0.95 | 0.94 | 0.94 |
+| Thinking teacher, MMLU-Pro (2k, 10-way) | 0.50 | 0.49 | 0.49 |
+| MMLU-Pro accuracy (2k) | 0.43 | 0.42 | 0.42 |
+| 11–26-way choice (920) | 0.83 | 0.84 | 0.85 |
+| XNLI, 10 languages (740) | 0.82 | 0.84 | 0.84 |
+| Synthetic requests, 6 non-English languages (1.5k) | 0.76 | 0.77 | 0.78 |
+| Synthetic requests, English (1.9k, in-distribution) | 0.90 | 0.89 | 0.90 |
+| Latency, 1 / 10 questions (p50, RTX PRO 6000) | 28 / 48 ms | 28 / 48 ms | 28 / 48 ms |
 
 v3 adds 26-way choice, XNLI, MMLU auxiliary_train and multilingual synthetic data to the
-mix and is trained from the base model. Most of the 26-way and multilingual capability is
-already present in v2 (the base model generalises over the code alphabet); v3 is 1–2 pt
-better there and 1 pt worse on MMLU-Pro.
+mix and is trained from the base model; v3b continues v3 for one epoch at lr 5e-6
+(`scripts/v3b.sh`). Most of the 26-way and multilingual capability is already present in v2
+(the base model generalises over the code alphabet); v3b is 1–3 pt better there and 1 pt
+worse on MMLU-Pro.
 
 It is a small model tuned for short states with clear criteria (routing, triage, labeling,
 safety flags). Multi-step reasoning and long-document judgments are outside its range.
 
 ## Reproduce
 
-One 96 GB GPU. v3: labeling ~15 h (multilingual generation and thinking labels dominate), training ~18 h.
+One 96 GB GPU. v3: labeling ~15 h (multilingual generation and thinking labels dominate), training ~18 h + 9 h.
 
 ```bash
 scripts/teacher_up.sh UD-IQ2_XXS 8080     # downloads ~91 GB, serves the teacher on :8080
@@ -112,6 +114,7 @@ uv run fern train runs/v1 --data data/hf.jsonl --data data/syn.jsonl
 uv run fern eval  runs/v1 --labels data/eval_mmlu_pro.jsonl --out runs/v1/eval.json
 scripts/v2.sh                             # + thinking-teacher labels on knowledge sources, one more epoch
 scripts/v3.sh                             # + 26-way choice, XNLI, MMLU aux, multilingual synthetic; train from base
+scripts/v3b.sh                            # one more epoch from v3 (released checkpoint)
 ```
 
 The teacher never generates text for labels: for each example the server reads the
